@@ -31,7 +31,7 @@ typedef int (*uthread_func_t)(void *arg);
  * Return: -1 in case of failure (memory allocation, context creation, TID
  * overflow, etc.). The TID of the new thread otherwise.
  */
-int uthread_create(uthread_func_t func, void *arg);
+int uthread_create(uthread_func_t func);
 
 /*
  * uthread_self - Get thread identifier

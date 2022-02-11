@@ -16,8 +16,6 @@
 #define HZ 100000
 
 void timer_handle(int alarm);
-struct itimerval timer; // struct used for timer functionality
-struct sigaction sigact; // struct used to handle signal
 
 
 void preempt_disable(void)
@@ -47,7 +45,9 @@ void preempt_enable(void)
 
 void preempt_start(void)
 {
-	
+	struct itimerval timer; // struct used for timer functionality
+	struct sigaction sigact; // struct used to handle signal
+
 	memset(&sigact, 0, sizeof (sigact)); // set bytes to size of struct
  	sigact.sa_handler = &timer_handle;
 	sigaction (SIGVTALRM, &sigact, NULL);

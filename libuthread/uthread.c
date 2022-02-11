@@ -19,20 +19,35 @@
 #define WAITING 4
 
 
-queue_t library;
 
 struct TCB {
+	int blockState; 
+	int retValue;
+	int* retCon;
 	uthread_ctx_t *ctx;  
 	uthread_t TID;
-	int state; 
-	int retVal;
-	int* retContain;
 	uthread_t collected;
 	uthread_t collecting;
 };
 
+queue_t library;
+
+int returned;
 struct TCB *currentBlock;
 uthread_t TID;
+
+
+int uthread_start(int preempt)
+{
+	returned = uthread_create(preempt);
+	return 0;
+}
+
+int uthread_stop(void)
+{
+	uthread_exit(returned);
+	return 0;
+}
 
 /*
 * find currentBlock
@@ -43,13 +58,15 @@ int get_running_block(queue_t lib, void* block, void* arg)
 {   	
 	struct TCB *curr = (struct TCB *) block;
 	
-	if(curr->state == RUNNING)
+	if(curr->blockState == RUNNING)
 	{
-		currentBlock = (struct TCB*) block;
+		currentBlock = (struct TCB *) block;
 		return 1;
 	}
-
-	return 0;
+	else {
+		return 0;		
+	}
+	
 }
 
 
@@ -64,8 +81,10 @@ int find_TID(queue_t lib, void* block, void* arg)
 
 	if(curBlock->TID == TID)
 		return 1;
-
-	return 0;
+	else {
+		return 0;
+	}
+	
 
 }
 
@@ -77,8 +96,8 @@ int find_TID(queue_t lib, void* block, void* arg)
 int  find_next(queue_t lib, void* tBlock, void*arg)
 {
 
-	int* flag = (int*) arg;
-	struct TCB* block = (struct TCB*) tBlock;
+	int* flag = (int *) arg;
+	struct TCB* block = (struct TCB *) tBlock;
 
 	if(block->TID == currentBlock->TID)
 	{
@@ -88,7 +107,7 @@ int  find_next(queue_t lib, void* tBlock, void*arg)
 	
 	if(*flag == 1)
 	{
-		if(block->state == READY)
+		if(block->blockState == READY)
 			return 1;
 	}
 
@@ -106,21 +125,19 @@ void uthread_yield(void)
 	queue_func_t findNext = &find_next;	
 	struct TCB* next;
 
-	int iter = queue_iterate(library, findNext, (void*)&flag, (void**)&next);
+	int iterator = queue_iterate(library, findNext, (void*)&flag, (void**)&next);
 	
-	if(iter != 0)
+	if(iterator != 0)
 		queue_iterate(library, findNext, (void*)&flag, (void**)&next);
-	preempt_disable();
+	
 	uthread_ctx_switch(currentBlock->ctx, next->ctx);
-	preempt_enable();
-
-	if(currentBlock->state == RUNNING)
-		currentBlock->state = READY;
-	next->state = RUNNING;
+	if(currentBlock->blockState == RUNNING)
+		currentBlock->blockState = READY;
+	next->blockState = RUNNING;
 	currentBlock = next;
 	
 	if(currentBlock->collecting != -1)
-		uthread_join(currentBlock->collecting, currentBlock->retContain);
+		uthread_join(currentBlock->collecting, currentBlock->retCon);
 		
 }
 
@@ -138,10 +155,10 @@ uthread_t uthread_self(void)
 
 }
 
-int uthread_create(uthread_func_t func, void *arg)
+int uthread_create(uthread_func_t func)
 {
 	int create;
-	struct TCB *tcBlock = (struct TCB*)malloc(sizeof(struct TCB));
+	struct TCB *newBlock = (struct TCB*)malloc(sizeof(struct TCB));
 	if(library == NULL)
 	{
 		struct TCB *mainBlock = (struct TCB*) malloc(sizeof(struct TCB));
@@ -150,24 +167,24 @@ int uthread_create(uthread_func_t func, void *arg)
 		mainBlock->TID = queue_length(library) - 1;
 		mainBlock->collecting = -1;
 		mainBlock->collected = -1;
-		mainBlock->state = RUNNING;
+		mainBlock->blockState = RUNNING;
 		mainBlock->ctx = malloc(sizeof(uthread_ctx_t));
 		currentBlock = mainBlock;
 		
 	}
 	
 	void *stack = uthread_ctx_alloc_stack();
-	tcBlock->ctx = malloc(sizeof(uthread_ctx_t));
+	newBlock->ctx = malloc(sizeof(uthread_ctx_t));
 
-	create = uthread_ctx_init(tcBlock->ctx, stack, func, arg);
+	create = uthread_ctx_init(newBlock->ctx, stack, func);
 	
 	if (create == 0)
 	{
-		queue_enqueue(library, tcBlock);
-		tcBlock->TID = queue_length(library) - 1;
-		tcBlock->state = READY;
-		tcBlock->collecting = tcBlock->collected = -1;
-		return tcBlock->TID;
+		queue_enqueue(library, newBlock);
+		newBlock->TID = queue_length(library) - 1;
+		newBlock->blockState = READY;
+		newBlock->collecting = newBlock->collected = -1;
+		return newBlock->TID;
 	} 
 	
 
@@ -178,22 +195,23 @@ int uthread_create(uthread_func_t func, void *arg)
 void uthread_exit(int retval)
 {
 		
-		if(currentBlock->state != RUNNING) 
+		if(currentBlock->blockState != RUNNING) 
 		{
 			uthread_self();
 		}
 
-		currentBlock->retVal = retval;  
-		currentBlock->state = FINISHED;
+		currentBlock->blockState = FINISHED;
+		currentBlock->retValue = retval;  
+		
 		
 		if(currentBlock->collected != -1)
 		{
-			struct TCB* collectingBlock;
 			queue_func_t finding = &find_TID;
-
+			struct TCB* collectingBlock;
+			
 			queue_iterate(library, finding, (void*)&currentBlock->collected, 
 				(void**)&collectingBlock);
-			collectingBlock->state = READY;
+			collectingBlock->blockState = READY;
 
 		}
 	
@@ -208,22 +226,22 @@ int uthread_join(uthread_t tid, int *retval)
 	TID = tid;
 	int iter = queue_iterate(library, func, NULL ,(void**) &zombieTCB);
 	
-	if( tid == currentBlock->TID || tid <= 0 || iter != 0 || zombieTCB->collected <=  queue_length(library) )
+	if( tid <= 0 || tid == currentBlock->TID || zombieTCB->collected <= queue_length(library) || iter != 0)
 		return -1;
-	if(zombieTCB->state == FINISHED)
+	if(zombieTCB->blockState == FINISHED)
 	{
 		if(retval)
-			*retval = zombieTCB->retVal;
+			*retval = zombieTCB->retValue;
 
 		uthread_ctx_destroy_stack(zombieTCB->ctx->uc_stack.ss_sp);
 		currentBlock->collecting = -1;
 		zombieTCB->collected = currentBlock->TID;
 	}	
-	else if(zombieTCB->state != FINISHED)
+	else if(zombieTCB->blockState != FINISHED)
 	{
 		zombieTCB->collected = currentBlock->TID;
-		currentBlock->state = WAITING;
-		currentBlock->retContain = retval;
+		currentBlock->blockState = WAITING;
+		currentBlock->retCon = retval;
 		uthread_yield();
 	}
 	return 0;

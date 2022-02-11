@@ -34,8 +34,9 @@ queue_t queue_create(void)
 {
 	queue_t queue = (queue_t)malloc(sizeof(struct queue));
 	queue->length = 0;
-	queue->front = NULL;
 	queue->rear = NULL;
+	queue->front = NULL;
+	
 
 	return queue;
 }
@@ -77,6 +78,7 @@ int queue_dequeue(queue_t queue, void **data)
 	struct node* temp = queue->front;
 	queue->front = queue->front->next;
 	free(temp);
+	
 	if (queue->front == NULL)
 		queue->rear = NULL;
 	queue->length--;
@@ -125,7 +127,7 @@ int queue_iterate(queue_t queue, queue_func_t func, void *arg, void **data)
 	{
 		curData = node->data;
 		iterator = (*func)(queue, node, arg);
-		
+
 		if(iterator == 1)
 		{
 			if (data != NULL)

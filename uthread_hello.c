@@ -11,17 +11,14 @@
 
 int hello(void* arg)
 {
-	printf("Hello world!\n");
-	//uthread_exit(4);
+	uthread_exit(4);
 	return 0;
 }
 
 int main(void)
 {
 	uthread_t tid;
-	printf("going to create\n");
-	tid = uthread_create(hello, NULL);
+	tid = uthread_create(hello);
 	uthread_join(tid, NULL);
-
 	return 0;
 }

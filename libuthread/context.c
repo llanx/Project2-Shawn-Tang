@@ -47,7 +47,7 @@ static void uthread_ctx_bootstrap(uthread_func_t func, void *arg)
 }
 
 int uthread_ctx_init(uthread_ctx_t *uctx, void *top_of_stack,
-		     uthread_func_t func, void *arg)
+		     uthread_func_t func)
 {
 	/*
 	 * Initialize the passed context @uctx to the currently active context
@@ -69,7 +69,7 @@ int uthread_ctx_init(uthread_ctx_t *uctx, void *top_of_stack,
 	 *   arguments: @func and @arg
 	 */
 	makecontext(uctx, (void (*)(void)) uthread_ctx_bootstrap,
-		    2, func, arg);
+		    2, func);
 
 	return 0;
 }
