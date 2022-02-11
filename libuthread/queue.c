@@ -124,8 +124,8 @@ int queue_iterate(queue_t queue, queue_func_t func, void *arg, void **data)
 	while(node != NULL)
 	{
 		curData = node->data;
-		iterator = (*func)(queue, curData, arg);
-
+		iterator = (*func)(queue, node, arg);
+		
 		if(iterator == 1)
 		{
 			if (data != NULL)
